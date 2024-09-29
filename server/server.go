@@ -3,8 +3,8 @@ package main
 import (
 	"bufio"
 	"flag"
-	"net"
 	"fmt"
+	"net"
 )
 
 type Message struct {
@@ -15,12 +15,17 @@ type Message struct {
 func handleError(err error) {
 	// TODO: all
 	// Deal with an error event.
+	fmt.Println(err)
 }
 
 func acceptConns(ln net.Listener, conns chan net.Conn) {
 	// TODO: all
 	// Continuously accept a network connection from the Listener
 	// and add it to the channel for handling connections.
+	for {
+		conn, _ := ln.Accept()
+		conns <- conn
+	}
 }
 
 func handleClient(client net.Conn, clientid int, msgs chan Message) {
@@ -29,6 +34,11 @@ func handleClient(client net.Conn, clientid int, msgs chan Message) {
 	// Read in new messages as delimited by '\n's
 	// Tidy up each message and add it to the messages channel,
 	// recording which client it came from.
+	for {
+		reader := bufio.NewReader(client)
+		msg, _ := reader.ReadString('\n')
+		msgs <- Message{sender: clientid, message: msg}
+	}
 }
 
 func main() {
@@ -38,6 +48,7 @@ func main() {
 	flag.Parse()
 
 	//TODO Create a Listener for TCP connections on the port given above.
+	ln, _ := net.Listen("tcp", *portPtr)
 
 	//Create a channel for connections
 	conns := make(chan net.Conn)
@@ -55,9 +66,21 @@ func main() {
 			// - assign a client ID
 			// - add the client to the clients map
 			// - start to asynchronously handle messages from this client
+			newId := len(clients)
+			clients[newId] = conn
+			go handleClient(conn, newId, msgs)
+
 		case msg := <-msgs:
 			//TODO Deal with a new message
 			// Send the message to all clients that aren't the sender
+			for id := range clients {
+				if id != msg.sender {
+					go func(id int) {
+						clientConn := clients[id]
+						fmt.Fprintln(clientConn, msg.message)
+					}(id)
+				}
+			}
 		}
 	}
 }
