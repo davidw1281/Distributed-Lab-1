@@ -15,7 +15,9 @@ type Message struct {
 func handleError(err error) {
 	// TODO: all
 	// Deal with an error event.
-	fmt.Println(err)
+	if err != nil {
+		fmt.Println("Error")
+	}
 }
 
 func acceptConns(ln net.Listener, conns chan net.Conn) {
@@ -34,9 +36,12 @@ func handleClient(client net.Conn, clientid int, msgs chan Message) {
 	// Read in new messages as delimited by '\n's
 	// Tidy up each message and add it to the messages channel,
 	// recording which client it came from.
+	reader := bufio.NewReader(client)
 	for {
-		reader := bufio.NewReader(client)
-		msg, _ := reader.ReadString('\n')
+		msg, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
 		msgs <- Message{sender: clientid, message: msg}
 	}
 }
@@ -48,7 +53,8 @@ func main() {
 	flag.Parse()
 
 	//TODO Create a Listener for TCP connections on the port given above.
-	ln, _ := net.Listen("tcp", *portPtr)
+	ln, err := net.Listen("tcp", *portPtr)
+	handleError(err)
 
 	//Create a channel for connections
 	conns := make(chan net.Conn)
@@ -75,10 +81,8 @@ func main() {
 			// Send the message to all clients that aren't the sender
 			for id := range clients {
 				if id != msg.sender {
-					go func(id int) {
-						clientConn := clients[id]
-						fmt.Fprintln(clientConn, msg.message)
-					}(id)
+					clientConn := clients[id]
+					fmt.Fprintln(clientConn, msg.message)
 				}
 			}
 		}
